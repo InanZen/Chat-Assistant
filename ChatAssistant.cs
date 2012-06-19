@@ -50,7 +50,7 @@ namespace ChatAssistant
         }
     }
     [APIVersion(1, 12)]
-    public class CAMain : TerrariaPlugin
+    public class Chat : TerrariaPlugin
     {
 
         private class Menu
@@ -186,7 +186,7 @@ namespace ChatAssistant
         {
             get { return new Version("0.1"); }
         }
-        public CAMain(Main game)
+        public Chat(Main game)
             : base(game)
         {
             Order = -1;
