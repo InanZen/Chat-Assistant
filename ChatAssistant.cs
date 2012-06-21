@@ -26,34 +26,41 @@ namespace ChatAssistant
     }
     public struct MenuItem
     {
-        public String text;
-        public int value;
-        public MenuItem(String text, int val = -1)
+        public String Text;
+        public Color Color;
+        public int Value;
+        public bool Selectable;
+        public MenuItem(String text) : this(text, -1) { }
+        public MenuItem(String text, int value) : this(text, value, true) { }
+        public MenuItem(String text, int value, bool selectable) : this(text, value, selectable, Color.White) { }
+        public MenuItem(String text, int value, bool selectable, Color color)
         {
-            this.text = text;
-            this.value = val;
+            this.Text = text;
+            this.Color = color;
+            this.Value = value;
+            this.Selectable = selectable;
         }
     }
     struct ChatMessage
     {
-        public String text;
-        public Color color;
+        public String Text;
+        public Color Color;
         public ChatMessage(String txt, Color c)
         {
-            this.color = c;
-            this.text = txt;
+            this.Color = c;
+            this.Text = txt;
         }
         public ChatMessage(String txt, int r, int g, int b)
         {
-            this.color = new Color(r, g, b);
-            this.text = txt;
+            this.Color = new Color(r, g, b);
+            this.Text = txt;
         }
     }
     [APIVersion(1, 12)]
     public class Chat : TerrariaPlugin
     {
 
-        private class Menu
+        public class Menu
         {
             public int PlayerID;
             public string title;
@@ -65,24 +72,6 @@ namespace ChatAssistant
             public Menu(int playerid, String title, List<MenuItem> contents, MenuAction del = null)
             {
                 this.contents = contents;
-                this.PlayerID = playerid;
-                this.title = title;
-                if (del != null)
-                    this.MenuActionHandler = del;
-                if (PlayerList[playerid] != null)
-                    PlayerList[playerid].InMenu = true;
-                this.DisplayMenu();
-            }
-            public Menu(int playerid, String title, List<String> text, List<int> values = null, MenuAction del = null)
-            {                
-                this.contents = new List<MenuItem>();
-                for (int i = 0; i < text.Count; i++)
-                {
-                    if (values != null && text.Count == values.Count)
-                        this.contents.Add(new MenuItem(text[i], values[i]));
-                    else
-                        this.contents.Add(new MenuItem(text[i]));
-                }
                 this.PlayerID = playerid;
                 this.title = title;
                 if (del != null)
@@ -104,11 +93,16 @@ namespace ChatAssistant
                      for (int i = j; i <= 3; i++)
                     {
                         if (i == 0)
-                            player.SendData(PacketTypes.ChatText, String.Format("> {0} <", this.contents[this.index].text), 255, Color.LightGray.R, Color.LightGray.G, Color.LightGray.B, 1);
+                        { 
+                            if (this.contents[this.index].Selectable)
+                                player.SendData(PacketTypes.ChatText, String.Format("> {0} <", this.contents[this.index].Text), 255, this.contents[this.index].Color.R, this.contents[this.index].Color.G, this.contents[this.index].Color.B, 1);
+                            else
+                                player.SendData(PacketTypes.ChatText, this.contents[this.index].Text, 255, this.contents[this.index].Color.R, this.contents[this.index].Color.G, this.contents[this.index].Color.B, 1);
+                        }
                         else if (this.index + i < 0 || this.index + i >= this.contents.Count)
                             player.SendData(PacketTypes.ChatText, "", 255, 0f, 0f, 0f, 1);
                         else
-                            player.SendData(PacketTypes.ChatText, String.Format("{0}", this.contents[this.index + i].text), 255, 255, 255, 255, 1);
+                            player.SendData(PacketTypes.ChatText, this.contents[this.index + i].Text, 255, this.contents[this.index + i].Color.R, this.contents[this.index + i].Color.G, this.contents[this.index + i].Color.B, 1);
                     }
                 }
             }
@@ -146,7 +140,8 @@ namespace ChatAssistant
             }
             public void Select()
             {
-                this.Close(this.index);
+                if (this.contents[this.index].Selectable)
+                    this.Close(this.index);
             }
         }
         private class CAPlayer
@@ -184,7 +179,7 @@ namespace ChatAssistant
         }
         public override Version Version
         {
-            get { return new Version("0.1"); }
+            get { return new Version("0.15"); }
         }
         public Chat(Main game)
             : base(game)
@@ -281,19 +276,29 @@ namespace ChatAssistant
                             if (up && down)
                             {
                                 player.Menu.Close();
+                                e.Handled = true;
                                 return;
                             }
                             if (up)
+                            {
                                 player.Menu.MoveUp();
+                                e.Handled = true;
+                            }
                             if (down)
+                            {
                                 player.Menu.MoveDown();
+                                e.Handled = true;
+                            }
                             if (space)
+                            {
                                 player.Menu.Select();
+                                e.Handled = true;
+                            }
                         }
                         else
                         {
                             if (up && down)
-                            {                                
+                            {     
                                 player.Menu = new Menu(player.Index, String.Format("Log [{0}]",DateTime.Now.ToString()), GetLog());
                                 player.Menu.index = player.Menu.contents.Count - 1;
                                 player.Menu.DisplayMenu();
@@ -362,36 +367,36 @@ namespace ChatAssistant
                 int index = LogCounter - i;
                 if (index < 0)                
                     index = ChatLog.Length - 1 + index; 
-                if (ChatLog[index].text != null)
-                    player.SendMessage(ChatLog[index].text, ChatLog[index].color);
+                if (ChatLog[index].Text != null)
+                    player.SendMessage(ChatLog[index].Text, ChatLog[index].Color);
             }
         }
-        public static List<String> GetLog(int offset = 49)
+        public static List<MenuItem> GetLog(int offset = 49)
         {
-            List<String> ReturnList = new List<string>();
+            List<MenuItem> ReturnList = new List<MenuItem>();
             for (int i = offset; i > 0; i--)
             {
                 int index = LogCounter - i;
                 if (index < 0)
                     index = ChatLog.Length - 1 + index;
-                if (ChatLog[index].text != null)
-                    ReturnList.Add(ChatLog[index].text);
+                if (ChatLog[index].Text != null)
+                    ReturnList.Add(new MenuItem(ChatLog[index].Text, -1, false, ChatLog[index].Color));
             }
             return ReturnList;
         }
-        public static bool CreateMenu(int PlayerID, string Title, List<String> Text, List<int> Values, MenuAction Callback)
+        public static Menu CreateMenu(int playerID, string title, List<MenuItem> data, MenuAction callback)
         {
-            var player = PlayerList[PlayerID];
+            var player = PlayerList[playerID];
             try
             {
                 if (player != null && !player.InMenu)
                 {
-                    player.Menu = new Menu(PlayerID, Title, Text, Values, Callback);
-                    return true;
+                    player.Menu = new Menu(playerID, title, data, callback);
+                    return player.Menu;
                 }
             }
             catch (Exception ex) { Log.ConsoleError(ex.ToString()); }
-            return false;
+            return null;
         }
 
     }   
