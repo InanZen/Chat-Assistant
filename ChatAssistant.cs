@@ -16,29 +16,41 @@ namespace ChatAssistant
 {
     public class MenuEventArgs : HandledEventArgs
     {
-        public MenuEventArgs(List<MenuItem> contents, int selection)
+        public MenuEventArgs(List<MenuItem> contents, int playerID) : this(contents, playerID, -1, 0) { }
+        public MenuEventArgs(List<MenuItem> contents, int playerID, int selection) : this(contents, playerID, selection, 1) { }            
+        public MenuEventArgs(List<MenuItem> contents, int playerID, int selection, byte status)
         {
             this.Data = contents;
             this.Selected = selection;
+            this.PlayerID = playerID;
+            this.Status = status;
         }
         public int Selected;
+        public byte Status;
         public List<MenuItem> Data;
+        public int PlayerID;
     }
-    public struct MenuItem
+    public class MenuItem
     {
         public String Text;
         public Color Color;
         public int Value;
         public bool Selectable;
+        public bool Writable;
+        public String Input;
         public MenuItem(String text) : this(text, -1) { }
-        public MenuItem(String text, int value) : this(text, value, true) { }
-        public MenuItem(String text, int value, bool selectable) : this(text, value, selectable, Color.White) { }
-        public MenuItem(String text, int value, bool selectable, Color color)
+        public MenuItem(String text, int value) : this(text, value, true, false) { }
+        public MenuItem(String text, int value, Color color) : this(text, value, true, false, color) { }
+        public MenuItem(String text, int value, bool selectable, Color color) : this(text, value, selectable, false, color) { }
+        public MenuItem(String text, int value, bool selectable, bool writable) : this(text, value, selectable, writable, Color.White) { }
+        public MenuItem(String text, int value, bool selectable, bool writable, Color color)
         {
             this.Text = text;
             this.Color = color;
             this.Value = value;
             this.Selectable = selectable;
+            this.Writable = writable;
+            this.Input = "";
         }
     }
     struct ChatMessage
@@ -94,15 +106,17 @@ namespace ChatAssistant
                     {
                         if (i == 0)
                         { 
-                            if (this.contents[this.index].Selectable)
-                                player.SendData(PacketTypes.ChatText, String.Format("> {0} <", this.contents[this.index].Text), 255, this.contents[this.index].Color.R, this.contents[this.index].Color.G, this.contents[this.index].Color.B, 1);
+                            if (this.contents[this.index].Writable)
+                                player.SendData(PacketTypes.ChatText, String.Format("{0}{1} < (Input field)", this.contents[this.index].Text, this.contents[this.index].Input), 255, this.contents[this.index].Color.R, this.contents[this.index].Color.G, this.contents[this.index].Color.B, 1);               
+                            else if (this.contents[this.index].Selectable)
+                                player.SendData(PacketTypes.ChatText, String.Format("> {0}{1} <", this.contents[this.index].Text, this.contents[this.index].Input), 255, this.contents[this.index].Color.R, this.contents[this.index].Color.G, this.contents[this.index].Color.B, 1);
                             else
                                 player.SendData(PacketTypes.ChatText, this.contents[this.index].Text, 255, this.contents[this.index].Color.R, this.contents[this.index].Color.G, this.contents[this.index].Color.B, 1);
                         }
                         else if (this.index + i < 0 || this.index + i >= this.contents.Count)
                             player.SendData(PacketTypes.ChatText, "", 255, 0f, 0f, 0f, 1);
                         else
-                            player.SendData(PacketTypes.ChatText, this.contents[this.index + i].Text, 255, this.contents[this.index + i].Color.R, this.contents[this.index + i].Color.G, this.contents[this.index + i].Color.B, 1);
+                            player.SendData(PacketTypes.ChatText, String.Format("{0}{1}", this.contents[this.index + i].Text, this.contents[this.index + i].Input), 255, this.contents[this.index + i].Color.R, this.contents[this.index + i].Color.G, this.contents[this.index + i].Color.B, 1);
                     }
                 }
             }
@@ -127,7 +141,7 @@ namespace ChatAssistant
                 var player = PlayerList[this.PlayerID];
                 if (player != null)
                 {
-                    MenuEventArgs args = new MenuEventArgs(this.contents, value);
+                    MenuEventArgs args = new MenuEventArgs(this.contents, this.PlayerID, value, (value == -1) ? (byte)0 : (byte)1);
                     if (this.MenuActionHandler != null)
                         this.MenuActionHandler(this, args);
                     if (!args.Handled)
@@ -142,6 +156,22 @@ namespace ChatAssistant
             {
                 if (this.contents[this.index].Selectable)
                     this.Close(this.index);
+            }
+            public void OnInput(String text)
+            {
+                var player = PlayerList[this.PlayerID];
+                if (player != null)
+                {
+                    string oldinput = this.contents[this.index].Input;
+                    this.contents[this.index].Input = text;
+                    MenuEventArgs args = new MenuEventArgs(this.contents, this.PlayerID, this.index, 2);
+                    if (this.MenuActionHandler != null)
+                        this.MenuActionHandler(this, args);
+                    if (!args.Handled)                    
+                        DisplayMenu();                    
+                    else
+                        this.contents[this.index].Input = oldinput;
+                }
             }
         }
         private class CAPlayer
@@ -179,7 +209,7 @@ namespace ChatAssistant
         }
         public override Version Version
         {
-            get { return new Version("0.15"); }
+            get { return new Version("0.2"); }
         }
         public Chat(Main game)
             : base(game)
@@ -241,7 +271,11 @@ namespace ChatAssistant
             if (player != null)
             {
                 if (player.InMenu)
+                {
+                    if (player.Menu.contents[player.Menu.index].Writable)
+                        player.Menu.OnInput(text);
                     args.Handled = true;
+                }
             }
         }
         public static void GetData(GetDataEventArgs e)
@@ -380,7 +414,7 @@ namespace ChatAssistant
                 if (index < 0)
                     index = ChatLog.Length - 1 + index;
                 if (ChatLog[index].Text != null)
-                    ReturnList.Add(new MenuItem(ChatLog[index].Text, -1, false, ChatLog[index].Color));
+                    ReturnList.Add(new MenuItem(ChatLog[index].Text, -1, false, false, ChatLog[index].Color));
             }
             return ReturnList;
         }
