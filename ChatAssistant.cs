@@ -38,6 +38,15 @@ namespace ChatAssistant
         public bool Selectable;
         public bool Writable;
         public String Input;
+        public MenuItem(MenuItem menuitem)
+        {
+            this.Text = menuitem.Text;
+            this.Value = menuitem.Value;
+            this.Selectable = menuitem.Selectable;
+            this.Writable = menuitem.Writable;
+            this.Color = menuitem.Color;
+            this.Input = menuitem.Input;
+        }
         public MenuItem(String text) : this(text, -1) { }
         public MenuItem(String text, int value) : this(text, value, true, false) { }
         public MenuItem(String text, int value, Color color) : this(text, value, true, false, color) { }
@@ -105,19 +114,20 @@ namespace ChatAssistant
                      for (int i = j; i <= 3; i++)
                     {
                         if (i == 0)
-                        { 
+                        {                             
                             if (this.contents[this.index].Writable)
-                                player.SendData(PacketTypes.ChatText, String.Format("{0}{1} < (Input field)", this.contents[this.index].Text, this.contents[this.index].Input), 255, this.contents[this.index].Color.R, this.contents[this.index].Color.G, this.contents[this.index].Color.B, 1);               
+                                player.SendData(PacketTypes.ChatText, (this.contents[this.index + i].Text.Contains("@0")) ? this.contents[this.index + i].Text.Replace("@0", String.Format(">{0}<",this.contents[this.index + i].Input)) : String.Format("{0}>{1}<", this.contents[this.index].Text, this.contents[this.index].Input), 255, this.contents[this.index].Color.R, this.contents[this.index].Color.G, this.contents[this.index].Color.B, 1);               
                             else if (this.contents[this.index].Selectable)
-                                player.SendData(PacketTypes.ChatText, String.Format("> {0}{1} <", this.contents[this.index].Text, this.contents[this.index].Input), 255, this.contents[this.index].Color.R, this.contents[this.index].Color.G, this.contents[this.index].Color.B, 1);
+                                player.SendData(PacketTypes.ChatText, (this.contents[this.index + i].Text.Contains("@0")) ? String.Format("> {0} <", this.contents[this.index + i].Text.Replace("@0", this.contents[this.index + i].Input)) : String.Format("> {0}{1} <", this.contents[this.index].Text, this.contents[this.index].Input), 255, this.contents[this.index].Color.R, this.contents[this.index].Color.G, this.contents[this.index].Color.B, 1);
                             else
-                                player.SendData(PacketTypes.ChatText, this.contents[this.index].Text, 255, this.contents[this.index].Color.R, this.contents[this.index].Color.G, this.contents[this.index].Color.B, 1);
+                                player.SendData(PacketTypes.ChatText, (this.contents[this.index + i].Text.Contains("@0")) ? this.contents[this.index + i].Text.Replace("@0", this.contents[this.index + i].Input) : this.contents[this.index].Text, 255, this.contents[this.index].Color.R, this.contents[this.index].Color.G, this.contents[this.index].Color.B, 1);
                         }
                         else if (this.index + i < 0 || this.index + i >= this.contents.Count)
                             player.SendData(PacketTypes.ChatText, "", 255, 0f, 0f, 0f, 1);
                         else
-                            player.SendData(PacketTypes.ChatText, String.Format("{0}{1}", this.contents[this.index + i].Text, this.contents[this.index + i].Input), 255, this.contents[this.index + i].Color.R, this.contents[this.index + i].Color.G, this.contents[this.index + i].Color.B, 1);
-                    }
+                            player.SendData(PacketTypes.ChatText, (this.contents[this.index + i].Text.Contains("@0")) ? this.contents[this.index + i].Text.Replace("@0",this.contents[this.index + i].Input) : String.Format("{0}{1}", this.contents[this.index + i].Text, this.contents[this.index + i].Input), 255, this.contents[this.index + i].Color.R, this.contents[this.index + i].Color.G, this.contents[this.index + i].Color.B, 1);
+                         
+                     }
                 }
             }
             public void MoveDown()
@@ -173,6 +183,15 @@ namespace ChatAssistant
                         this.contents[this.index].Input = oldinput;
                 }
             }
+            public MenuItem GetItemByValue(int value)
+            {
+                foreach (MenuItem item in this.contents)
+                {
+                    if (item.Value == value)
+                        return item;
+                }
+                return null;
+            }
         }
         private class CAPlayer
         {
@@ -209,7 +228,7 @@ namespace ChatAssistant
         }
         public override Version Version
         {
-            get { return new Version("0.2"); }
+            get { return new Version("0.21"); }
         }
         public Chat(Main game)
             : base(game)
