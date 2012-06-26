@@ -11,6 +11,7 @@ using TShockAPI;
 using TShockAPI.DB;
 using Mono.Data.Sqlite;
 using MySql.Data.MySqlClient;
+using Newtonsoft.Json;
 
 namespace ChatAssistant
 {
@@ -66,16 +67,34 @@ namespace ChatAssistant
     {
         public String Text;
         public Color Color;
-        public ChatMessage(String txt, Color c)
+        public int Recipient;
+        public int Channel;
+        public ChatMessage(String txt, Color c, int rec = -1, int chan = 0 )
         {
             this.Color = c;
             this.Text = txt;
+            this.Recipient = rec;
+            this.Channel = chan;
         }
-        public ChatMessage(String txt, int r, int g, int b)
+        /*public ChatMessage(String txt, int r, int g, int b) : this(txt, new Color(r, g, b)) { }   */     
+    }
+    class Channel
+    {
+        public int ID;
+        public String Name;
+        public byte Flags;
+        public string Password;
+        public Channel(int id, string name) : this(id, name, 0, "") { }
+        public Channel(int id, string name, byte flags) : this(id, name, flags, "") { }
+        [JsonConstructor]
+        public Channel(int id, string name, byte flags, string password)
         {
-            this.Color = new Color(r, g, b);
-            this.Text = txt;
+            this.ID = id;
+            this.Name = name;
+            this.Flags = flags;
+            this.Password = password;
         }
+
     }
     [APIVersion(1, 12)]
     public class Chat : TerrariaPlugin
@@ -158,7 +177,7 @@ namespace ChatAssistant
                     {
                         player.InMenu = false;
                         player.Menu = null;
-                        DisplayLog(player.TSPlayer, 7);
+                        DisplayLog(player, 7);
                     }
                 }
             }
@@ -199,6 +218,7 @@ namespace ChatAssistant
             public TSPlayer TSPlayer;
             public bool InMenu = false;
             public Menu Menu;
+            public int Channel = 0;
             public CAPlayer(int id = -1)
             {
                 this.Index = id;
@@ -206,6 +226,8 @@ namespace ChatAssistant
                 {
                     this.TSPlayer = TShock.Players[id];
                 }
+                if (Channels[0] != null)
+                    this.Channel = 1;
             }
 
         }
@@ -213,6 +235,8 @@ namespace ChatAssistant
         private static ChatMessage[] ChatLog = new ChatMessage[50];
         private static int LogCounter = 0;
         public delegate void MenuAction(Object sender, MenuEventArgs args);
+        private static Channel[] Channels = new Channel[256];
+        private static String Savepath = Path.Combine(TShock.SavePath, "Chat Assistant/");
 
         public override string Name
         {
@@ -228,7 +252,7 @@ namespace ChatAssistant
         }
         public override Version Version
         {
-            get { return new Version("0.21"); }
+            get { return new Version("0.25"); }
         }
         public Chat(Main game)
             : base(game)
@@ -242,6 +266,42 @@ namespace ChatAssistant
             ServerHooks.Join += OnJoin;
             ServerHooks.Leave += OnLeave;
             ServerHooks.Chat += OnChat;
+            Commands.ChatCommands.Add(new Command("channel", ChannelCommand, "ch", "channel"));
+
+            if (!Directory.Exists(Savepath))
+            {
+                Directory.CreateDirectory(Savepath);
+                List<Channel> defaultChannels = new List<Channel>();
+                defaultChannels.Add(new Channel(1, "Global", 1));
+                using (var stream = new FileStream(Path.Combine(Savepath, "PermChannels.json"), FileMode.OpenOrCreate, FileAccess.Write, FileShare.Write))
+                {
+                    using (var sr = new StreamWriter(stream))
+                    {
+                        sr.Write(JsonConvert.SerializeObject(defaultChannels, Formatting.Indented));
+                    }
+                    stream.Close();
+                }                
+            }
+            using (var stream = new FileStream(Path.Combine(Savepath, "PermChannels.json"), FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                using (var sr = new StreamReader(stream))
+                {
+                    var permChanList = JsonConvert.DeserializeObject<List<Channel>>(sr.ReadToEnd());
+                    int index = 0;
+                    for (int i = 0; i < Channels.Length; i++)
+                    {
+                        if (index >= permChanList.Count)
+                            break;
+                        if (Channels[i] == null)
+                        {
+                            Channels[i] = new Channel(i + 1, permChanList[index].Name, permChanList[index].Flags, permChanList[index].Password);
+                            index++;
+                        }
+                    }                        
+                }
+                stream.Close();
+            }
+
         }
         protected override void Dispose(bool disposing)
         {
@@ -284,17 +344,71 @@ namespace ChatAssistant
                 Log.ConsoleError(ex.ToString());
             }
         }
+        void ChannelCommand(CommandArgs args)
+        {
+            var player = PlayerList[args.Player.Index];
+            if (player == null)
+                return;
+            if (args.Parameters.Count > 0)
+            {
+                int j = -1;
+                for (int i = 0; i < Channels.Length; i++)
+                {
+                    if (Channels[i] != null)
+                    {
+                        if (Channels[i].Name.ToLower() == args.Parameters[0].ToLower())
+                        {
+                            if (Channels[i].Password != "" && (args.Parameters.Count < 2 || args.Parameters[1] != Channels[i].Password)) // incorrect password
+                            {
+                                args.Player.SendMessage("This channel is locked, please provide the correct password.", Color.Red);
+                                return;
+                            }
+                            player.Channel = Channels[i].ID; // join channel
+                            NetMessage.SendData((int)PacketTypes.ChatText, -1, -1, String.Format("{0} has joined the channel", player.TSPlayer.Name), 255, Color.LightSalmon.R, Color.LightSalmon.G, Color.LightSalmon.B, player.Channel);
+                            return;                            
+                        }
+                    }
+                    else if (j == -1)
+                        j = i;                    
+                }
+                if (j != -1) // channel not found
+                {
+                    if (args.Player.Group.HasPermission("channelcreate")) //create new channel
+                    {
+                        var newchannel = new Channel(j+1, args.Parameters[0]);
+                        if (args.Parameters.Count > 1)
+                            newchannel.Password = args.Parameters[1];
+                        Channels[j] = newchannel;
+                        player.Channel = j+1;
+                        NetMessage.SendData((int)PacketTypes.ChatText, -1, -1, "New channel created", 255, Color.LightSalmon.R, Color.LightSalmon.G, Color.LightSalmon.B, player.Channel);
+                        return;
+                    }
+                    args.Player.SendMessage("Channel not found and you do not have permission to create a new channel", Color.LightSalmon);
+                    return;
+                }
+                args.Player.SendMessage("Channel not found and all channel slots are full", Color.Red);
+                return;
+            }
+            args.Player.SendMessage("Syntax: /ch <channel name> [<password>]", Color.Red);
+        }
         void OnChat(messageBuffer buf, int who, string text, HandledEventArgs args)
         {
+            if (text[0] == '/')
+                return;
             var player = PlayerList[who];
             if (player != null)
             {
                 if (player.InMenu)
                 {
                     if (player.Menu.contents[player.Menu.index].Writable)
-                        player.Menu.OnInput(text);
-                    args.Handled = true;
+                        player.Menu.OnInput(text);                    
                 }
+                else
+                {
+                    var playerGroup = player.TSPlayer.Group;
+                    NetMessage.SendData((int)PacketTypes.ChatText, -1, -1, String.Format(TShock.Config.ChatFormat, playerGroup.Name, playerGroup.Prefix, player.TSPlayer.Name, playerGroup.Suffix, text), 255, playerGroup.R, playerGroup.G, playerGroup.B, player.Channel); 
+                }
+                args.Handled = true;
             }
         }
         public static void GetData(GetDataEventArgs e)
@@ -352,7 +466,7 @@ namespace ChatAssistant
                         {
                             if (up && down)
                             {     
-                                player.Menu = new Menu(player.Index, String.Format("Log [{0}]",DateTime.Now.ToString()), GetLog());
+                                player.Menu = new Menu(player.Index, String.Format("Log [{0}]",DateTime.Now.ToString()), GetLog(player.Index, player.Channel));
                                 player.Menu.index = player.Menu.contents.Count - 1;
                                 player.Menu.DisplayMenu();
                             }
@@ -380,51 +494,66 @@ namespace ChatAssistant
             {
                 if (e.MsgID == PacketTypes.ChatText)
                 {
-                    //Console.WriteLine("1: {0}, 5: {1}, remote: {2}, ignore: {3}", e.number, e.number5, e.remoteClient, e.ignoreClient);
-                    if (e.remoteClient != -1)
+                   // Console.WriteLine("1: {0}, 2: {4}, 3: {5}, 4: {6}, 5: {1}, remote: {2}, ignore: {3}", e.number, e.number5, e.remoteClient, e.ignoreClient, e.number2, e.number3, e.number4);
+
+                    if (e.remoteClient == -1) // message to all players
                     {
-                        var player = PlayerList[e.remoteClient];
-                        if (player != null && player.InMenu && e.number5 == 0)
-                            e.Handled = true;
-                    }
-                    else
-                    {
+                        int channel = e.number5;
                         foreach (TSPlayer tsply in TShock.Players)
                         {
                             if (tsply != null && tsply.Index >= 0)
                             {
                                 var player = PlayerList[tsply.Index];
-                                if (player != null && !player.InMenu)
-                                {
-                                    player.TSPlayer.SendMessage(e.text, (byte)e.number2, (byte)e.number3, (byte)e.number4);
-                                }
+                                if (player != null && (channel == 0 || channel == player.Channel) && !player.InMenu)                                
+                                    player.TSPlayer.SendData(PacketTypes.ChatText, e.text, 255, e.number2, e.number3, e.number4, 1);
+                                
                             }
                         }
-                        ChatLog[LogCounter] = new ChatMessage(e.text, (int)e.number2, (int)e.number3, (int)e.number4);
-                        LogCounter++;
-                        if (LogCounter > 49)
-                            LogCounter = 0;
+                        AddLogItem(new ChatMessage(e.text, new Color((byte)e.number2, (byte)e.number3, (byte)e.number4), -1, channel));
                         e.Handled = true;
                     }
-                                        
+                    else // message for player id = e.remoteClient
+                    {
+                        var player = PlayerList[e.remoteClient];
+                        if (player == null)
+                            return;
+                        if (e.number5 == 0) // default message
+                        {
+                            AddLogItem(new ChatMessage(e.text, new Color((byte)e.number2, (byte)e.number3, (byte)e.number4), e.remoteClient));
+                            if (player.InMenu)
+                                e.Handled = true;
+                        }
+                    }                                        
                 }
             }
             catch (Exception ex) { Log.ConsoleError(ex.ToString()); }
         }
-        public static void DisplayLog(TSPlayer player, int offset)
+        private static void AddLogItem(ChatMessage msg)
         {
+            ChatLog[LogCounter] = msg;
+            LogCounter++;
+            if (LogCounter > 49)
+                LogCounter = 0;
+        }
+        private static void DisplayLog(CAPlayer player, int offset)
+        {
+            if (player == null)
+                return;
             for (int i = offset; i > 0; i--)
             {
                 if (i < offset - 6)
                     break;
                 int index = LogCounter - i;
-                if (index < 0)                
-                    index = ChatLog.Length - 1 + index; 
+                if (index < 0)
+                    index = ChatLog.Length - 1 + index;
                 if (ChatLog[index].Text != null)
-                    player.SendMessage(ChatLog[index].Text, ChatLog[index].Color);
+                {
+                    if (ChatLog[index].Channel == player.Channel || ChatLog[index].Recipient == player.Index)
+                        player.TSPlayer.SendData(PacketTypes.ChatText, ChatLog[index].Text, 255, ChatLog[index].Color.R, ChatLog[index].Color.G, ChatLog[index].Color.B, 1);
+                }
             }
         }
-        public static List<MenuItem> GetLog(int offset = 49)
+        public static List<MenuItem> GetLog(int playerID = -1, int channelID = 0, int offset = 49)
         {
             List<MenuItem> ReturnList = new List<MenuItem>();
             for (int i = offset; i > 0; i--)
@@ -432,7 +561,7 @@ namespace ChatAssistant
                 int index = LogCounter - i;
                 if (index < 0)
                     index = ChatLog.Length - 1 + index;
-                if (ChatLog[index].Text != null)
+                if (ChatLog[index].Text != null && (ChatLog[index].Channel == 0 || ChatLog[index].Channel == channelID) && (ChatLog[index].Recipient == -1 ||ChatLog[index].Recipient == playerID))
                     ReturnList.Add(new MenuItem(ChatLog[index].Text, -1, false, false, ChatLog[index].Color));
             }
             return ReturnList;
