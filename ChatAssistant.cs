@@ -232,7 +232,7 @@ namespace ChatAssistant
 
         }
         private static CAPlayer[] PlayerList = new CAPlayer[256];
-        private static ChatMessage[] ChatLog = new ChatMessage[50];
+        private static ChatMessage[] ChatLog = new ChatMessage[200];
         private static int LogCounter = 0;
         public delegate void MenuAction(Object sender, MenuEventArgs args);
         private static Channel[] Channels = new Channel[256];
@@ -532,31 +532,40 @@ namespace ChatAssistant
         {
             ChatLog[LogCounter] = msg;
             LogCounter++;
-            if (LogCounter > 49)
+            if (LogCounter >= ChatLog.Length)
                 LogCounter = 0;
         }
         private static void DisplayLog(CAPlayer player, int offset)
         {
             if (player == null)
                 return;
-            for (int i = offset; i > 0; i--)
+            var log = GetLog(player.Index, player.Channel, offset);
+            foreach (MenuItem logItem in log)
             {
-                if (i < offset - 6)
+                player.TSPlayer.SendData(PacketTypes.ChatText, logItem.Text, 255, logItem.Color.R, logItem.Color.G, logItem.Color.B, 1);
+            }  
+        }
+        public static List<MenuItem> GetLog(int playerID = -1, int channelID = 0, int offset = 199)
+        {
+            List<MenuItem> ReturnList = new List<MenuItem>();
+            int count = 0;
+            for (int i = 1; i < ChatLog.Length; i++)
+            {
+                if (count >= offset)
                     break;
                 int index = LogCounter - i;
                 if (index < 0)
                     index = ChatLog.Length - 1 + index;
-                if (ChatLog[index].Text != null)
+                if (ChatLog[index].Text != null && (ChatLog[index].Channel == 0 || ChatLog[index].Channel == channelID) && (ChatLog[index].Recipient == -1 || ChatLog[index].Recipient == playerID))
                 {
-                    if (ChatLog[index].Channel == player.Channel || ChatLog[index].Recipient == player.Index)
-                        player.TSPlayer.SendData(PacketTypes.ChatText, ChatLog[index].Text, 255, ChatLog[index].Color.R, ChatLog[index].Color.G, ChatLog[index].Color.B, 1);
+                    ReturnList.Add(new MenuItem(ChatLog[index].Text, -1, false, false, ChatLog[index].Color));
+                    count++;
                 }
             }
-        }
-        public static List<MenuItem> GetLog(int playerID = -1, int channelID = 0, int offset = 49)
-        {
-            List<MenuItem> ReturnList = new List<MenuItem>();
-            for (int i = offset; i > 0; i--)
+            ReturnList.Reverse();
+            return ReturnList;            
+
+            /*for (int i = offset; i > 0; i--)
             {
                 int index = LogCounter - i;
                 if (index < 0)
@@ -564,7 +573,7 @@ namespace ChatAssistant
                 if (ChatLog[index].Text != null && (ChatLog[index].Channel == 0 || ChatLog[index].Channel == channelID) && (ChatLog[index].Recipient == -1 ||ChatLog[index].Recipient == playerID))
                     ReturnList.Add(new MenuItem(ChatLog[index].Text, -1, false, false, ChatLog[index].Color));
             }
-            return ReturnList;
+            return ReturnList;*/
         }
         public static Menu CreateMenu(int playerID, string title, List<MenuItem> data, MenuAction callback)
         {
