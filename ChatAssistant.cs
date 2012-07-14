@@ -252,7 +252,7 @@ namespace ChatAssistant
         }
         public override Version Version
         {
-            get { return new Version("0.25"); }
+            get { return new Version("0.3"); }
         }
         public Chat(Main game)
             : base(game)
@@ -494,22 +494,23 @@ namespace ChatAssistant
             {
                 if (e.MsgID == PacketTypes.ChatText)
                 {
-                   // Console.WriteLine("1: {0}, 2: {4}, 3: {5}, 4: {6}, 5: {1}, remote: {2}, ignore: {3}", e.number, e.number5, e.remoteClient, e.ignoreClient, e.number2, e.number3, e.number4);
-
+                    //Log.ConsoleInfo(String.Format("1: {0}, 2: {4}, 3: {5}, 4: {6}, 5: {1}, remote: {2}, ignore: {3}", e.number, e.number5, e.remoteClient, e.ignoreClient, e.number2, e.number3, e.number4));
                     if (e.remoteClient == -1) // message to all players
                     {
                         int channel = e.number5;
-                        foreach (TSPlayer tsply in TShock.Players)
+                        for (int i = 0; i < PlayerList.Length; i++)
                         {
-                            if (tsply != null && tsply.Index >= 0)
+                            if (PlayerList[i] != null)
                             {
-                                var player = PlayerList[tsply.Index];
-                                if (player != null && (channel == 0 || channel == player.Channel) && !player.InMenu)                                
-                                    player.TSPlayer.SendData(PacketTypes.ChatText, e.text, 255, e.number2, e.number3, e.number4, 1);
-                                
+                                if (!PlayerList[i].InMenu && (channel == 0 || channel == PlayerList[i].Channel))
+                                    PlayerList[i].TSPlayer.SendData(PacketTypes.ChatText, e.text, 255, e.number2, e.number3, e.number4, 1);
                             }
                         }
                         AddLogItem(new ChatMessage(e.text, new Color((byte)e.number2, (byte)e.number3, (byte)e.number4), -1, channel));
+                        
+                        String logMessage = String.Format("[Chat][{0}] {1}", (channel > 0 && Channels[channel-1] != null) ? Channels[channel-1].Name : "All" , e.text);
+                        Console.WriteLine(logMessage);
+                        Log.Data(logMessage);
                         e.Handled = true;
                     }
                     else // message for player id = e.remoteClient
