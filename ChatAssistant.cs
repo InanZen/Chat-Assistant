@@ -252,7 +252,7 @@ namespace ChatAssistant
         }
         public override Version Version
         {
-            get { return new Version("0.3"); }
+            get { return new Version("0.31"); }
         }
         public Chat(Main game)
             : base(game)
@@ -401,14 +401,15 @@ namespace ChatAssistant
                 if (player.InMenu)
                 {
                     if (player.Menu.contents[player.Menu.index].Writable)
-                        player.Menu.OnInput(text);                    
+                        player.Menu.OnInput(text);
+                    args.Handled = true;
                 }
-                else
+                else if (!player.TSPlayer.mute)
                 {
                     var playerGroup = player.TSPlayer.Group;
-                    NetMessage.SendData((int)PacketTypes.ChatText, -1, -1, String.Format(TShock.Config.ChatFormat, playerGroup.Name, playerGroup.Prefix, player.TSPlayer.Name, playerGroup.Suffix, text), 255, playerGroup.R, playerGroup.G, playerGroup.B, player.Channel); 
+                    NetMessage.SendData((int)PacketTypes.ChatText, -1, -1, String.Format(TShock.Config.ChatFormat, playerGroup.Name, playerGroup.Prefix, player.TSPlayer.Name, playerGroup.Suffix, text), 255, playerGroup.R, playerGroup.G, playerGroup.B, player.Channel);
+                    args.Handled = true;
                 }
-                args.Handled = true;
             }
         }
         public static void GetData(GetDataEventArgs e)
