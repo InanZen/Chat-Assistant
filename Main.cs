@@ -169,18 +169,21 @@ namespace ChatAssistant
         {
             try
             {
-                lock (PlayerList)
+                if (who >= 0 && PlayerList[who] != null)
                 {
-                    PlayerList[who].quitting = true;
-                    if (PlayerList[who].InMenu)
-                        PlayerList[who].Menu.Close(true);
-                    if (PlayerList[who].Channel >= 0)
+                    lock (PlayerList)
                     {
-                        var chan = Channels[PlayerList[who].Channel];
-                        if (chan != null)
-                            chan.LeaveChannel(PlayerList[who]);
+                        PlayerList[who].quitting = true;
+                        if (PlayerList[who].InMenu)
+                            PlayerList[who].Menu.Close(true);
+                        if (PlayerList[who].Channel >= 0)
+                        {
+                            var chan = Channels[PlayerList[who].Channel];
+                            if (chan != null)
+                                chan.LeaveChannel(PlayerList[who]);
+                        }
+                        PlayerList[who] = null;
                     }
-                    PlayerList[who] = null;
                 }
             }
             catch (Exception ex)
