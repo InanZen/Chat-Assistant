@@ -56,7 +56,12 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ChatAssistant.cs" />
+    <Compile Include="Channel.cs" />
+    <Compile Include="Config.cs" />
+    <Compile Include="Main.cs" />
+    <Compile Include="Menu.cs" />
+    <Compile Include="Message.cs" />
+    <Compile Include="Player.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
