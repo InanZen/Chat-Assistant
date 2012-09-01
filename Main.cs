@@ -84,7 +84,7 @@ namespace ChatAssistant
         }
         public override Version Version
         {
-            get { return new Version("0.4"); }
+            get { return new Version("0.41"); }
         }
         public CAMain(Main game)
             : base(game)
@@ -108,7 +108,7 @@ namespace ChatAssistant
             if (!File.Exists(permChanPath))
             {
                 List<ChannelTemplate> defaultChannels = new List<ChannelTemplate>();
-                defaultChannels.Add(new ChannelTemplate { Name = "Global", Flags = (ChannelFlags)1, Password = "" });
+                defaultChannels.Add(new ChannelTemplate { Name = "Global", Password = "", AnnounceChannelJoinLeave = false, BlockGlobalChat = false, Hidden = false });
                 /*var defaultChannel = new Channel(0, "Global", 1);
                 List<Object> newlist = new List<Object>() { new { defaultChannel.Name, defaultChannel.Flags, defaultChannel.Password } };*/
 
@@ -129,7 +129,7 @@ namespace ChatAssistant
                     var permChanList = JsonConvert.DeserializeObject<List<ChannelTemplate>>(sr.ReadToEnd());
                     for (int i = 0; i < permChanList.Count; i++)
                     {
-                        Channels[i] = new Channel(i, permChanList[i].Name, permChanList[i].Flags, permChanList[i].Password);
+                        Channels[i] = new Channel(i, permChanList[i].Name, permChanList[i].GetFlags(), permChanList[i].Password);
                     }                        
                 }
                 stream.Close();
@@ -156,6 +156,8 @@ namespace ChatAssistant
                 {
                     PlayerList[who] = new CAPlayer(who);
                 }
+                if (Channels[0] != null)
+                    Channels[0].JoinChannel(PlayerList[who]);
             }
             catch (Exception ex)
             {
@@ -172,7 +174,7 @@ namespace ChatAssistant
                     PlayerList[who].quitting = true;
                     if (PlayerList[who].InMenu)
                         PlayerList[who].Menu.Close(true);
-                    if (PlayerList[who].Channel != -1)
+                    if (PlayerList[who].Channel >= 0)
                     {
                         var chan = Channels[PlayerList[who].Channel];
                         if (chan != null)
@@ -202,7 +204,12 @@ namespace ChatAssistant
                         {
                             if (Channels[i].Name.ToLower() == args.Parameters[0].ToLower())
                             {
-                                if (Channels[i].Password != "" && (args.Parameters.Count < 2 || args.Parameters[1] != Channels[i].Password)) // incorrect password
+                                if (Channels[i].ID == player.Channel)
+                                {
+                                    args.Player.SendMessage("You are already in this channel", Color.Red);
+                                    return;
+                                }
+                                if (Channels[i].Password != "" && !args.Player.Group.HasPermission("CA.channel.bypass.password") && (args.Parameters.Count < 2 || args.Parameters[1] != Channels[i].Password)) // incorrect password
                                 {
                                     args.Player.SendMessage("This channel is locked, please provide the correct password.", Color.Red);
                                     return;
@@ -222,7 +229,7 @@ namespace ChatAssistant
                             if (args.Parameters.Count > 1)
                                 newchannel.Password = args.Parameters[1];
                             Channels[j] = newchannel;
-                            NetMessage.SendData((int)PacketTypes.ChatText, -1, -1, "New channel created", 255, Color.LightSalmon.R, Color.LightSalmon.G, Color.LightSalmon.B, player.Channel + 1);
+                            NetMessage.SendData((int)PacketTypes.ChatText, -1, -1, "New channel created", 255, Color.LightSalmon.R, Color.LightSalmon.G, Color.LightSalmon.B, j + 1);
                             Channels[j].JoinChannel(player);
                             return;
                         }

@@ -230,7 +230,7 @@ namespace ChatAssistant
                     case 2: // Channel list
                         {
                             menu.title = "Channel list";
-                            menu.contents = GetContentsChannelList();
+                            menu.contents = GetContentsChannelList((TShock.Players[menu.PlayerID].Group.HasPermission("CA.channel.bypass.hidden")) ? true : false);
                             break;
                         }
                     case 3: // channel chat log
@@ -285,10 +285,14 @@ namespace ChatAssistant
             returnList.Add(new MenuItem("[ Exit ]", -1, Color.LightGray));
             return returnList;
         }
-        internal static List<MenuItem> GetContentsChannelList()
+        internal static List<MenuItem> GetContentsChannelList(bool hidden = false)
         {
             List<MenuItem> returnList = new List<MenuItem>();
-            var chList = Channel.GetNonHidden();
+            List<Channel> chList;
+            if (hidden)
+                chList = Channel.GetAll();
+            else
+                chList = Channel.GetNonHidden();
             foreach (Channel ch in chList)
             {
                 returnList.Add(new MenuItem(String.Format("{0} [{1} in channel] [{2}]", ch.Name, ch.Users.Count, ch.Flags.ToString()), 0, false, Color.AntiqueWhite));

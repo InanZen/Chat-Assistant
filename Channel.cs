@@ -14,13 +14,29 @@ namespace ChatAssistant
         Permanent = 1,
         Passworded = 2,
         Hidden = 4,
-        BlockGlobalChat = 8
+        BlockGlobalChat = 8,
+        BlockJoinLeaveMsg = 16
     }
     public class ChannelTemplate
     {
         public String Name;
-        public ChannelFlags Flags;
         public String Password;
+        public bool Hidden;
+        public bool BlockGlobalChat;
+        public bool AnnounceChannelJoinLeave;
+        public ChannelFlags GetFlags()
+        {
+            ChannelFlags flags = (ChannelFlags)1;
+            if (this.Password.Length > 0)
+                flags |= ChannelFlags.Passworded;
+            if (this.Hidden)
+                flags |= ChannelFlags.Hidden;
+            if (this.BlockGlobalChat)
+                flags |= ChannelFlags.BlockGlobalChat;
+            if (!this.AnnounceChannelJoinLeave)
+                flags |= ChannelFlags.BlockJoinLeaveMsg;
+            return flags;
+        }
     }
     public class Channel
     {
@@ -43,17 +59,28 @@ namespace ChatAssistant
         }
         public void JoinChannel(CAPlayer player)
         {
-            if (player == null) 
+            if (player == null)
                 return;
+            if (player.Channel >= 0 && player.Channel != this.ID && CAMain.Channels[player.Channel] != null)
+                CAMain.Channels[player.Channel].LeaveChannel(player);
             player.Channel = this.ID;
             if (!this.Users.Contains(player.Index))
-                this.Users.Add(player.Index);                           
-            CAMain.DisplayLog(player, 6);
-            NetMessage.SendData((int)PacketTypes.ChatText, -1, -1, String.Format("[Join] {0} has joined the channel", player.TSPlayer.Name), 255, Color.LightSalmon.R, Color.LightSalmon.G, Color.LightSalmon.B, player.Channel + 1);
+            {
+                this.Users.Add(player.Index);
+                CAMain.DisplayLog(player, 6);
+                if (!this.Flags.HasFlag(ChannelFlags.BlockJoinLeaveMsg))
+                    NetMessage.SendData((int)PacketTypes.ChatText, -1, player.Index, String.Format("[Join] {0} has joined the channel", player.TSPlayer.Name), 255, Color.LightSalmon.R, Color.LightSalmon.G, Color.LightSalmon.B, this.ID + 1);
+            }
         }
         public void LeaveChannel(CAPlayer player)
         {
-
+            this.Users.Remove(player.Index);
+            player.Channel = 0;
+            if (!this.Flags.HasFlag(ChannelFlags.Permanent) && this.Users.Count == 0)
+                DeleteChannel(this.ID);
+            else if (!this.Flags.HasFlag(ChannelFlags.BlockJoinLeaveMsg))
+                NetMessage.SendData((int)PacketTypes.ChatText, -1, player.Index, String.Format("[Leave] {0} has left the channel", player.TSPlayer.Name), 255, Color.LightSalmon.R, Color.LightSalmon.G, Color.LightSalmon.B, this.ID + 1);
+      
         }
         public void AddToLog(ChatMessage msg)
         {
@@ -95,13 +122,16 @@ namespace ChatAssistant
         }
         public static void DeleteChannel(int id)
         {
-            if (id >= 0 && CAMain.Channels[id] != null)
+            if (id > 0 && CAMain.Channels[id] != null)
             {
-                foreach (CAPlayer player in CAMain.PlayerList)
+                if (CAMain.Channels[id].Flags.HasFlag(ChannelFlags.Permanent))
+                    return;
+                foreach (int pID in CAMain.Channels[id].Users)
                 {
-                    if (player.Channel == id)
-                        player.Channel = 0;
+                    if (pID >= 0 && CAMain.PlayerList[pID] != null && CAMain.PlayerList[pID].Channel == id)
+                        CAMain.PlayerList[pID].Channel = 0;
                 }
+                CAMain.Channels[id] = null;
             }
         }
         public static int GetEmpty()
@@ -129,6 +159,16 @@ namespace ChatAssistant
             for (int i = 0; i < CAMain.Channels.Length; i++)
             {
                 if (CAMain.Channels[i] != null && !CAMain.Channels[i].Flags.HasFlag(ChannelFlags.Hidden))
+                    ReturnList.Add(CAMain.Channels[i]);
+            }
+            return ReturnList;
+        }
+        public static List<Channel> GetAll()
+        {
+            var ReturnList = new List<Channel>();
+            for (int i = 0; i < CAMain.Channels.Length; i++)
+            {
+                if (CAMain.Channels[i] != null)
                     ReturnList.Add(CAMain.Channels[i]);
             }
             return ReturnList;
