@@ -28,15 +28,15 @@ namespace ChatAssistant
         internal static CAconfig config;
         public static String[] DeathMessages = new String[] 
         {
-            "'s face was torn off",
-            "'s entrails were ripped out",
-            "'s skull was crushed",
-            "'s extremities were detached",
-            "'s body was mangled",
-            "'s vital organs were ruptured",
-            "'s plead for death was finally answered",
-            "'s meat was ripped off the bone",
-            "'s flailing about was finally stopped",
+            "face was torn off",
+            "entrails were ripped out",
+            "skull was crushed",
+            "extremities were detached",
+            "body was mangled",
+            "vital organs were ruptured",
+            "plead for death was finally answered",
+            "meat was ripped off the bone",
+            "flailing about was finally stopped",
             "got massacred",
             "got impaled",
             "got snapped in half",
@@ -84,7 +84,7 @@ namespace ChatAssistant
         }
         public override Version Version
         {
-            get { return new Version("0.41"); }
+            get { return new Version("0.42"); }
         }
         public CAMain(Main game)
             : base(game)
