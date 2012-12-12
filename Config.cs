@@ -9,25 +9,21 @@ namespace ChatAssistant
 {
     class CAconfig
     {
-        public bool EnableJoinQuitFilter;
-        public bool FilterJoinQuitByDefault;
-        public bool EnableDeathMsgFilter;
-        public bool FilterDeathMsgByDefault;
-        public CAconfig()
-        {
-            this.EnableDeathMsgFilter = true;
-            this.FilterDeathMsgByDefault = false;
-            this.EnableJoinQuitFilter = true;
-            this.FilterJoinQuitByDefault = false;            
-        }
-        [JsonConstructor]
+        public bool EnableJoinQuitFilter = true;
+        public bool FilterJoinQuitByDefault = false;
+        public bool EnableDeathMsgFilter = true;
+        public bool FilterDeathMsgByDefault = false;
+        public bool UsingVault = false;
+        public int ChanelCreatingCost = 10000;
+
+   /*     [JsonConstructor]
         public CAconfig(bool joinquitfilter, bool deathmsgfilter, bool joinquitdefault, bool deathmsgdefault)
         {
             this.EnableJoinQuitFilter = joinquitfilter;
             this.EnableDeathMsgFilter = deathmsgfilter;
             this.FilterDeathMsgByDefault = deathmsgdefault;
             this.FilterJoinQuitByDefault = joinquitdefault;
-        }
+        }*/
         // -------------------------------  Static save/load methods -----------------------
         public static CAconfig Load()
         {

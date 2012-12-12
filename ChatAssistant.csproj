@@ -48,11 +48,17 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
-    <Reference Include="TerrariaServer">
-      <HintPath>..\..\..\Refs\TerrariaServer.exe</HintPath>
+    <Reference Include="TerrariaServer, Version=0.0.0.0, Culture=neutral, processorArchitecture=x86">
+      <SpecificVersion>False</SpecificVersion>
+      <ExecutableExtension>.exe</ExecutableExtension>
+      <HintPath>..\..\..\tShock References\4.0\TerrariaServer.exe</HintPath>
     </Reference>
-    <Reference Include="TShockAPI">
-      <HintPath>..\..\..\Refs\3.9\TShockAPI.dll</HintPath>
+    <Reference Include="TShockAPI, Version=3.9.0.526, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\tShock References\4.0\serverplugins\TShockAPI.dll</HintPath>
+    </Reference>
+    <Reference Include="Vault">
+      <HintPath>..\..\Vault\Vault\bin\Release\Vault.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
