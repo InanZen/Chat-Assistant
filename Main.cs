@@ -84,7 +84,7 @@ namespace ChatAssistant
         }
         public override Version Version
         {
-            get { return new Version("0.44"); }
+            get { return new Version("0.45"); }
         }
         public CAMain(Main game)
             : base(game)
@@ -100,7 +100,6 @@ namespace ChatAssistant
             ServerHooks.Chat += OnChat;
             Commands.ChatCommands.Add(new Command("CA.channel.cmd", ChannelCommand, "ch", "channel"));
             Commands.ChatCommands.Add(new Command("CA.ignore.cmd", IgnoreCommand, "ignore"));
-
 
             if (!Directory.Exists(Savepath))
                 Directory.CreateDirectory(Savepath);
@@ -327,12 +326,19 @@ namespace ChatAssistant
             if (text[0] == '/')
                 return;
             var player = PlayerList[who];
-            if (player != null && player.InMenu)
+            if (player != null)
             {
-                if (player.Menu.contents[player.Menu.index].Writable)
-                    player.Menu.OnInput(text);
-                args.Handled = true;
-
+                if (player.InMenu)
+                {
+                    if (player.Menu.contents[player.Menu.index].Writable)
+                        player.Menu.OnInput(text);
+                    args.Handled = true;
+                }
+                else if (!player.TSPlayer.mute && !TShock.Config.EnableChatAboveHeads)
+                {
+                    NetMessage.SendData((int)PacketTypes.ChatText, -1, who, String.Format(TShock.Config.ChatFormat, player.TSPlayer.Group.Name, player.TSPlayer.Group.Prefix, player.TSPlayer.Name, player.TSPlayer.Group.Suffix, text), 255, player.TSPlayer.Group.R, player.TSPlayer.Group.G, player.TSPlayer.Group.B, player.Channel + 2);
+                    args.Handled = true;
+                }
             }
         }
         public static void GetData(GetDataEventArgs e)
@@ -399,7 +405,7 @@ namespace ChatAssistant
             {
                 if (e.MsgID == PacketTypes.ChatText)
                 {
-                    Log.ConsoleInfo(String.Format("ChatText> 1: {0}, 2: {4}, 3: {5}, 4: {6}, 5: {1}, remote: {2}, ignore: {3}", e.number, e.number5, e.remoteClient, e.ignoreClient, e.number2, e.number3, e.number4));
+                 //   Log.ConsoleInfo(String.Format("ChatText> 1: {0}, 2: {4}, 3: {5}, 4: {6}, 5: {1}, remote: {2}, ignore: {3}", e.number, e.number5, e.remoteClient, e.ignoreClient, e.number2, e.number3, e.number4));
                     int sender = e.ignoreClient; // -1 = system
                     if (sender == -1 && TShock.Config.EnableChatAboveHeads)
                         sender = e.number;
@@ -407,12 +413,12 @@ namespace ChatAssistant
                     {
                         if (e.number5 == 0) // Default message, needs processing
                         {
-                            if (sender >= 0)
+                            if (sender >= 0 && sender != 255)
                             {
                                 var player = PlayerList[sender];
                                 if (player != null && !player.InMenu && !player.TSPlayer.mute)
                                 {
-                                    Console.WriteLine("sender {0} in channel {1}", sender, player.Channel);
+                                 //   Console.WriteLine("sender {0} in channel {1}", sender, player.Channel);
                                     var playerGroup = player.TSPlayer.Group;
                                     int number1 = 255;
                                     if (TShock.Config.EnableChatAboveHeads)
@@ -428,11 +434,17 @@ namespace ChatAssistant
 
                             int channel = e.number5 - 2;
                             MsgType msgType = MsgType.Global;
-                            Console.WriteLine("channel: {0}", channel);
                             if (channel >= 0)
                             {
                                 msgType = MsgType.Channel;
-                                Channels[channel].AddToLog(new ChatMessage(e.text, new Color((byte)e.number2, (byte)e.number3, (byte)e.number4), msgType, sender)); // add to channel log
+                                if (TShock.Config.EnableChatAboveHeads && sender != -1 && sender != 255)
+                                {
+                                    TSPlayer tsplr = TShock.Players[sender];
+                                    string msg = String.Format(TShock.Config.ChatFormat, tsplr.Group.Name, tsplr.Group.Prefix, tsplr.Name, tsplr.Group.Suffix, e.text);
+                                    Channels[channel].AddToLog(new ChatMessage(msg, new Color((byte)e.number2, (byte)e.number3, (byte)e.number4), msgType, sender)); // add to channel log
+                                }
+                                else
+                                    Channels[channel].AddToLog(new ChatMessage(e.text, new Color((byte)e.number2, (byte)e.number3, (byte)e.number4), msgType, sender)); // add to channel log
                             }
                             else
                             {
@@ -485,6 +497,19 @@ namespace ChatAssistant
                                 e.Handled = true;
                         }
                     }                                        
+                }
+                else if (e.MsgID == PacketTypes.PlayerInfo)
+                {
+                   //  Console.WriteLine(String.Format("PlayerInfo> 1: {0}, 2: {4}, 3: {5}, 4: {6}, 5: {1}, remote: {2}, ignore: {3} text: {7}", e.number, e.number5, e.remoteClient, e.ignoreClient, e.number2, e.number3, e.number4, e.text));
+                    if (TShock.Config.EnableChatAboveHeads && e.number5 == 0) //default message
+                    {
+                        var player = PlayerList[e.number];
+                        if (player != null)
+                        {
+                            e.Handled = true;
+                            NetMessage.SendData((int)PacketTypes.PlayerInfo, e.remoteClient, e.ignoreClient, String.Format(TShock.Config.ChatFormat, player.TSPlayer.Group.Name, player.TSPlayer.Group.Prefix, player.TSPlayer.Name, player.TSPlayer.Group.Suffix, ""), e.number, e.number2, e.number3, e.number4, 1);
+                        }
+                    }
                 }
             }
             catch (Exception ex) { Log.ConsoleError(ex.ToString()); }
