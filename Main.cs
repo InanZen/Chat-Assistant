@@ -327,23 +327,12 @@ namespace ChatAssistant
             if (text[0] == '/')
                 return;
             var player = PlayerList[who];
-            if (player != null)
+            if (player != null && player.InMenu)
             {
-                if (player.InMenu)
-                {
-                    if (player.Menu.contents[player.Menu.index].Writable)
-                        player.Menu.OnInput(text);
-                    args.Handled = true;
-                }
-                else if (!player.TSPlayer.mute)
-                {
-                    var playerGroup = player.TSPlayer.Group;
-                    int number1 = 255;
-                    if (TShock.Config.EnableChatAboveHeads)
-                         number1 = who;
-                    NetMessage.SendData((int)PacketTypes.ChatText, -1, who, String.Format(TShock.Config.ChatFormat, playerGroup.Name, playerGroup.Prefix, player.TSPlayer.Name, playerGroup.Suffix, text), number1, playerGroup.R, playerGroup.G, playerGroup.B, player.Channel + 1);
-                    args.Handled = true;
-                }
+                if (player.Menu.contents[player.Menu.index].Writable)
+                    player.Menu.OnInput(text);
+                args.Handled = true;
+
             }
         }
         public static void GetData(GetDataEventArgs e)
@@ -410,43 +399,68 @@ namespace ChatAssistant
             {
                 if (e.MsgID == PacketTypes.ChatText)
                 {
-                     //Log.ConsoleInfo(String.Format("ChatText> 1: {0}, 2: {4}, 3: {5}, 4: {6}, 5: {1}, remote: {2}, ignore: {3}", e.number, e.number5, e.remoteClient, e.ignoreClient, e.number2, e.number3, e.number4));
+                    Log.ConsoleInfo(String.Format("ChatText> 1: {0}, 2: {4}, 3: {5}, 4: {6}, 5: {1}, remote: {2}, ignore: {3}", e.number, e.number5, e.remoteClient, e.ignoreClient, e.number2, e.number3, e.number4));
                     int sender = e.ignoreClient; // -1 = system
+                    if (sender == -1 && TShock.Config.EnableChatAboveHeads)
+                        sender = e.number;
                     if (e.remoteClient == -1) // message to all players
                     {
-                        int channel = e.number5 - 1;
-                        MsgType msgType = MsgType.Global;
-                        if (channel >= 0)
+                        if (e.number5 == 0) // Default message, needs processing
                         {
-                            msgType = MsgType.Channel;
-                            Channels[channel].AddToLog(new ChatMessage(e.text, new Color((byte)e.number2, (byte)e.number3, (byte)e.number4), msgType, sender)); // add to channel log
+                            if (sender >= 0)
+                            {
+                                var player = PlayerList[sender];
+                                if (player != null && !player.InMenu && !player.TSPlayer.mute)
+                                {
+                                    Console.WriteLine("sender {0} in channel {1}", sender, player.Channel);
+                                    var playerGroup = player.TSPlayer.Group;
+                                    int number1 = 255;
+                                    if (TShock.Config.EnableChatAboveHeads)
+                                        number1 = e.ignoreClient;
+                                    NetMessage.SendData((int)PacketTypes.ChatText, -1, sender, e.text, e.number, e.number2, e.number3, e.number4, player.Channel + 2);                                    
+                                }
+                            }
+                            else
+                                NetMessage.SendData((int)PacketTypes.ChatText, -1, -1, e.text, e.number, e.number2, e.number3, e.number4, 1);
                         }
                         else
                         {
-                            AddLogItem(new ChatMessage(e.text, new Color((byte)e.number2, (byte)e.number3, (byte)e.number4), msgType, sender)); // add to global log           
-                            if (config.EnableDeathMsgFilter || config.EnableJoinQuitFilter)
+
+                            int channel = e.number5 - 2;
+                            MsgType msgType = MsgType.Global;
+                            Console.WriteLine("channel: {0}", channel);
+                            if (channel >= 0)
                             {
-                                var plyName = StartsWithPlayerName(e.text);
-                                if (plyName != "")
+                                msgType = MsgType.Channel;
+                                Channels[channel].AddToLog(new ChatMessage(e.text, new Color((byte)e.number2, (byte)e.number3, (byte)e.number4), msgType, sender)); // add to channel log
+                            }
+                            else
+                            {
+                                AddLogItem(new ChatMessage(e.text, new Color((byte)e.number2, (byte)e.number3, (byte)e.number4), msgType, sender)); // add to global log           
+                                if (config.EnableDeathMsgFilter || config.EnableJoinQuitFilter)
                                 {
-                                    if (config.EnableJoinQuitFilter && e.text == String.Format("{0} has joined.", plyName))
-                                        msgType = MsgType.Join;
-                                    else if (config.EnableJoinQuitFilter && e.text == String.Format("{0} left", plyName))
-                                        msgType = MsgType.Quit;
-                                    else if (config.EnableDeathMsgFilter && IsDeathMsg(e.text, plyName))
-                                        msgType = MsgType.Death;
+                                    var plyName = StartsWithPlayerName(e.text);
+                                    if (plyName != "")
+                                    {
+                                        if (config.EnableJoinQuitFilter && e.text == String.Format("{0} has joined.", plyName))
+                                            msgType = MsgType.Join;
+                                        else if (config.EnableJoinQuitFilter && e.text == String.Format("{0} left", plyName))
+                                            msgType = MsgType.Quit;
+                                        else if (config.EnableDeathMsgFilter && IsDeathMsg(e.text, plyName))
+                                            msgType = MsgType.Death;
+                                    }
                                 }
                             }
-                        }
-                        for (int i = 0; i < PlayerList.Length; i++)
-                        {
-                            if (PlayerList[i] != null && !PlayerList[i].InMenu && !PlayerList[i].Ignores.Contains(sender) && (msgType == MsgType.Global || channel == PlayerList[i].Channel || (msgType == MsgType.Death && !PlayerList[i].Flags.HasFlag(PlayerSettings.HideDeathMsg)) || ((msgType == MsgType.Join || msgType == MsgType.Quit) && !PlayerList[i].Flags.HasFlag(PlayerSettings.HideJoinQuitMsg))))
-                                NetMessage.SendData((int)PacketTypes.ChatText, PlayerList[i].Index, sender, e.text, e.number, e.number2, e.number3, e.number4, 1); // custom message > e.number5 = 1, e.ignoreClient = sender
-                        }
+                            for (int i = 0; i < PlayerList.Length; i++)
+                            {
+                                if (PlayerList[i] != null && !PlayerList[i].InMenu && !PlayerList[i].Ignores.Contains(sender) && (msgType == MsgType.Global || channel == PlayerList[i].Channel || (msgType == MsgType.Death && !PlayerList[i].Flags.HasFlag(PlayerSettings.HideDeathMsg)) || ((msgType == MsgType.Join || msgType == MsgType.Quit) && !PlayerList[i].Flags.HasFlag(PlayerSettings.HideJoinQuitMsg))))
+                                    NetMessage.SendData((int)PacketTypes.ChatText, PlayerList[i].Index, sender, e.text, e.number, e.number2, e.number3, e.number4, 1); // custom message > e.number5 = 1, e.ignoreClient = sender
+                            }
 
-                        String logMessage = String.Format("[Chat][{1}]{2} {0}", e.text, msgType.ToString(), (msgType == MsgType.Channel && Channels[channel] != null) ? String.Format("[{0}]", Channels[channel].Name) : "");
-                        Console.WriteLine(logMessage);
-                        Log.Data(logMessage);
+                            String logMessage = String.Format("[Chat][{1}]{2} {0}", e.text, msgType.ToString(), (msgType == MsgType.Channel && Channels[channel] != null) ? String.Format("[{0}]", Channels[channel].Name) : "");
+                            Console.WriteLine(logMessage);
+                            Log.Data(logMessage);
+                        }
                         e.Handled = true;
                     }
                     else // message for player id = e.remoteClient
